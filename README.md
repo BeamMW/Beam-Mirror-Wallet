@@ -18,9 +18,9 @@ You can use _Mirror Wallet_ to isolate your wallet from changes from the outside
 		"wallet_api_port": 10000            // Wallet API port
 	}
 	```
-	run `bridge.js` script by calling `node bridge.js`
-1. Clone this repo to a public host  
-	configure `mirror.cfg` 
+	run `bridge.js` script by calling `node bridge.js`.
+1. Clone this repo to a public host,  
+	configure `mirror.cfg`, 
 	``` js
 	{
 		"http_api_port": 80,    // port for incomming http requests
@@ -28,8 +28,8 @@ You can use _Mirror Wallet_ to isolate your wallet from changes from the outside
 	}
 
 	```
-	run `mirror.js` script by calling `node mirror.js`
-1. Now you can do HTTP requests to the *Wallet Mirror* on the public host  
+	run `mirror.js` script by calling `node mirror.js`.
+1. Now you can do HTTP requests to the *Wallet Mirror* on the public host,  
 	example with CURL usage: 
 	```
 	curl -d '{"jsonrpc":"2.0","id":1,"method":"wallet_status","key":"h12kj3h1k2h3kj12h3kj12"}' -H "Content-Type: application/json" -X POST http://127.0.0.1:80/api/wallet
