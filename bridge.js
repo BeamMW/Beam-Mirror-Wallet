@@ -32,7 +32,7 @@ function syncWithBeam()
     api = new net.Socket()
     var acc = ''
 
-    api.connect(10000, '127.0.0.1', () =>
+    api.connect(cfg.wallet_api_port, cfg.wallet_api_addr, () =>
     {
         console.log('connected to api')
 
