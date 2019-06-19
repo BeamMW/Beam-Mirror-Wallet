@@ -7,7 +7,7 @@ You can use _Mirror Wallet_ to isolate your wallet from changes from the outside
 ## Steps to initialize Mirror Wallet
 1. Install latest Nodejs to private and public hosts (`sudo apt-get install nodejs` or download from https://nodejs.org)
 1. Run *Beam Wallet API* with enabled *ACL* on a private host  (example: `wallet-api-masternet --node_addr eu-node01.masternet.beam.mw:8100 --use_acl 1`, read more here https://github.com/BeamMW/beam/wiki/Beam-wallet-protocol-API#user-authorization)
-1. Clone this repo to a private host, 
+1. Clone this repo to a private host,  
 	configure `bridge.cfg` 
 	``` js
 	{
@@ -19,7 +19,7 @@ You can use _Mirror Wallet_ to isolate your wallet from changes from the outside
 	}
 	```
 	run `bridge.js` script by calling `node bridge.js`
-1. Clone this repo to a public host
+1. Clone this repo to a public host  
 	configure `mirror.cfg` 
 	``` js
 	{
@@ -29,7 +29,7 @@ You can use _Mirror Wallet_ to isolate your wallet from changes from the outside
 
 	```
 	run `mirror.js` script by calling `node mirror.js`
-1. Now you can do HTTP requests to the *Wallet Mirror* on the public host 
+1. Now you can do HTTP requests to the *Wallet Mirror* on the public host  
 	example with CURL usage: 
 	```
 	curl -d '{"jsonrpc":"2.0","id":1,"method":"wallet_status","key":"h12kj3h1k2h3kj12h3kj12"}' -H "Content-Type: application/json" -X POST http://127.0.0.1:80/api/wallet
