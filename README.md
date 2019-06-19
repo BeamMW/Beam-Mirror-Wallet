@@ -34,4 +34,4 @@ You can use _Mirror Wallet_ to isolate your wallet from changes from the outside
 	```
 	curl -d '{"jsonrpc":"2.0","id":1,"method":"wallet_status","key":"h12kj3h1k2h3kj12h3kj12"}' -H "Content-Type: application/json" -X POST http://127.0.0.1:80/api/wallet
 	```
-)
+
