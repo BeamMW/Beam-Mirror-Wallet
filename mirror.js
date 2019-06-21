@@ -1,5 +1,6 @@
 const net = require('net')
 const http = require('http')
+const https = require('https')
 const url = require('url')
 const fs = require('fs')
 
@@ -27,7 +28,7 @@ if(!cfg)
 var queue = []
 var workingQueue = null
 
-var server = http.createServer((req, res) => 
+function httpHandler(req, res)
 {
     var href = url.parse(req.url)
     var pathParts = href.pathname.split('/')
@@ -54,7 +55,30 @@ var server = http.createServer((req, res) =>
         res.writeHead(404, { 'Content-Type': 'text/plain' })
         res.end('Not found!')
     }
-})
+}
+
+if(cfg.use_tls)
+{
+    if(!fs.existsSync(cfg.tls_key))
+    {
+        console.log('error: ' + cfg.tls_key + ' file not found.')
+        return;
+    }
+
+    if(!fs.existsSync(cfg.tls_cert))
+    {
+        console.log('error: ' + cfg.tls_cert + ' file not found.')
+        return;
+    }
+}
+
+var server = cfg.use_tls
+    ? https.createServer(
+        {
+            key: fs.readFileSync(cfg.tls_key),
+            cert: fs.readFileSync(cfg.tls_cert)
+        }, httpHandler)
+    : http.createServer(httpHandler)
 
 server.listen(cfg.http_api_port, (err) => 
 {
@@ -63,7 +87,7 @@ server.listen(cfg.http_api_port, (err) =>
         return console.log('Error: ', err)
     }
 
-    console.log(`Wallet Mirror HTTP Api is listening on ${cfg.http_api_port}`)
+    console.log(`Wallet Mirror HTTP${cfg.use_tls ? 'S' : ''} Api is listening on ${cfg.http_api_port}`)
 })
 
 console.log("Starting Beam bridge listener...")
