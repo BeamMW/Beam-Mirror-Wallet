@@ -3,6 +3,7 @@ const http = require('http')
 const https = require('https')
 const url = require('url')
 const fs = require('fs')
+const tls = require('tls');
 
 console.log("Starting Beam Wallet Mirror...")
 
@@ -92,7 +93,7 @@ server.listen(cfg.http_api_port, (err) =>
 
 console.log("Starting Beam bridge listener...")
 
-var bridge = net.createServer((socket) => 
+function bridgeHandler(socket)
 {
     socket.on('error', (e) => {})
 
@@ -106,12 +107,21 @@ var bridge = net.createServer((socket) =>
 
         if(data.indexOf('\n') != -1)
         {
-            var res = JSON.parse(acc)
+            socket.destroy()
+
+            try
+            {
+                var res = JSON.parse(acc)
+            }
+            catch(error)
+            {
+                console.log('JSON parsing error:', error)
+                console.log(acc)
+                return;
+            }
 
             if(res && res.length)
                 console.log('received from bridge:', res)
-
-            socket.destroy()
 
             for(var key in res)
             {
@@ -132,7 +142,15 @@ var bridge = net.createServer((socket) =>
     socket.write(JSON.stringify(queue.map((item, index) => {return {id:index, body:item.body}})) + '\n')
     workingQueue = queue
     queue = []
-})
+}
+
+var bridge = cfg.use_tls
+    ? tls.createServer(
+        {
+            key: fs.readFileSync(cfg.tls_key),
+            cert: fs.readFileSync(cfg.tls_cert)
+        }, bridgeHandler)
+    : net.createServer(bridgeHandler);
 
 bridge.listen(cfg.mirror_port, (err) => 
 {

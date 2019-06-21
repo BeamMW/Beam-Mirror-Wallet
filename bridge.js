@@ -1,5 +1,6 @@
 const net = require('net')
 const fs = require('fs')
+const tls = require('tls');
 
 console.log("Starting Beam Wallet Bridge...")
 
@@ -57,9 +58,9 @@ syncWithBeam()
 
 function syncWithMirror()
 {
-    client = new net.Socket()
-
-    client.connect(cfg.mirror_port, cfg.mirror_addr)//, () => console.log('connected to mirror'))
+    client = cfg.use_tls
+        ? tls.connect(cfg.mirror_port, cfg.mirror_addr, {rejectUnauthorized: false})
+        : net.connect(cfg.mirror_port, cfg.mirror_addr)
 
     var acc = ''
 
