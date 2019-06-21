@@ -23,8 +23,11 @@ You can use _Mirror Wallet_ to isolate your wallet from changes from the outside
 	configure `mirror.cfg`, 
 	``` js
 	{
-		"http_api_port": 80,    // port for incomming http requests
-		"mirror_port": 8080     // server port for bridge connection
+		"http_api_port": 80,        // port for incomming http(s) requests
+		"mirror_port": 8080,        // server port for bridge connection
+		"use_tls" : true,           // use TLS protocol
+		"tls_cert" : "test.crt",    // path to TLS private key
+		"tls_key" : "test.key"      // path to TLS certificate
 	}
 
 	```
