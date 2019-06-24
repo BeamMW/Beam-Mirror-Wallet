@@ -1,6 +1,6 @@
-const net = require('net')
-const fs = require('fs')
-const tls = require('tls');
+const net       = require('net')
+const fs        = require('fs')
+const tls       = require('tls')
 
 console.log("Starting Beam Wallet Bridge...")
 
@@ -74,7 +74,7 @@ function syncWithMirror()
             var res = JSON.parse(acc)
             acc = ''
 
-            var result = []
+            var result = {key:cfg.bridge_key, items:[]}
 
             if(res && res.length)
             {
@@ -98,7 +98,7 @@ function syncWithMirror()
 
                                 console.log('received from wallet api:', res)
 
-                                result.push({id:item.id, result:res})
+                                result.items.push({id:item.id, result:res})
 
                                 handle()
                             }
@@ -118,7 +118,7 @@ function syncWithMirror()
             }
             else
             {
-                client.write(JSON.stringify([]) + '\n')
+                client.write(JSON.stringify(result) + '\n')
             }
         }
     })

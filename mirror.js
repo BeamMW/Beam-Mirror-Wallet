@@ -1,9 +1,9 @@
-const net = require('net')
-const http = require('http')
-const https = require('https')
-const url = require('url')
-const fs = require('fs')
-const tls = require('tls');
+const net       = require('net')
+const http      = require('http')
+const https     = require('https')
+const url       = require('url')
+const fs        = require('fs')
+const tls       = require('tls')
 
 console.log("Starting Beam Wallet Mirror...")
 
@@ -63,13 +63,13 @@ if(cfg.use_tls)
     if(!fs.existsSync(cfg.tls_key))
     {
         console.log('error: ' + cfg.tls_key + ' file not found.')
-        return;
+        return
     }
 
     if(!fs.existsSync(cfg.tls_cert))
     {
         console.log('error: ' + cfg.tls_cert + ' file not found.')
-        return;
+        return
     }
 }
 
@@ -117,22 +117,29 @@ function bridgeHandler(socket)
             {
                 console.log('JSON parsing error:', error)
                 console.log(acc)
-                return;
+                return
             }
 
-            if(res && res.length)
-                console.log('received from bridge:', res)
+            if(res && res.items && res.items.length)
+                console.log('received from bridge:', res.items)
 
-            for(var key in res)
+            if(res.key == cfg.bridge_key)
             {
-                var resItem = res[key]
-                var queueItem = workingQueue[resItem.id]
-
-                if(queueItem)
+                for(var key in res.items)
                 {
-                    queueItem.res.writeHead(200, { 'Content-Type': 'text/plain' })
-                    queueItem.res.end(JSON.stringify(resItem.result))
+                    var resItem = res.items[key]
+                    var queueItem = workingQueue[resItem.id]
+
+                    if(queueItem)
+                    {
+                        queueItem.res.writeHead(200, { 'Content-Type': 'text/plain' })
+                        queueItem.res.end(JSON.stringify(resItem.result))
+                    }
                 }
+            }
+            else
+            {
+                console.log("Error, unknown bridge key: ", res.key)
             }
 
             workingQueue = null
@@ -150,7 +157,7 @@ var bridge = cfg.use_tls
             key: fs.readFileSync(cfg.tls_key),
             cert: fs.readFileSync(cfg.tls_cert)
         }, bridgeHandler)
-    : net.createServer(bridgeHandler);
+    : net.createServer(bridgeHandler)
 
 bridge.listen(cfg.mirror_port, (err) => 
 {
