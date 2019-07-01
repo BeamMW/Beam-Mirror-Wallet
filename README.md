@@ -2,7 +2,7 @@
 
 You can use _Mirror Wallet_ to isolate your wallet from changes from the outside. It consists of two parts, a bridge, and a mirror. Bridge runs on the private host near the Wallet API and pushes wallet data to the Mirror host.
 
-![image](https://user-images.githubusercontent.com/1101448/59771578-ad400a00-92b2-11e9-9b1e-acfeec1af159.png)
+![scheme](https://user-images.githubusercontent.com/1101448/60456168-3b1bdd80-9c41-11e9-9fa3-aaf9052e8394.png)
 
 ## Steps to initialize Mirror Wallet
 1. Install latest Nodejs to private and public hosts (`sudo apt-get install nodejs` or download from https://nodejs.org)
