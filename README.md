@@ -17,10 +17,11 @@ You can use _Mirror Wallet_ to isolate your wallet from changes from the outside
 		"wallet_api_addr": "127.0.0.1",     // Wallet API address
 		"wallet_api_port": 10000,           // Wallet API port
 		"use_tls" : true,                   // use TLS protocol to connect to the Mirror
-
-		"bridge_key" : "ab75e357e0890e98ab75e357e0890e98"	// bridge access key
+		"private_key" : "beam-private.pem"	// private key to sign all the messages with the Mirror
 	}
 	```
+	run `node ./bridge.js --generate-key-pair` to generate private and public keys,
+	copy generated `beam-public.pem` to the Mirror host,
 	run `bridge.js` script by calling `node bridge.js`.
 1. Clone this repo to a public host,  
 	configure `mirror.cfg`, 
@@ -31,15 +32,12 @@ You can use _Mirror Wallet_ to isolate your wallet from changes from the outside
 		"use_tls" : true,           // use TLS protocol to talk with the Bridge and HTTP clients
 		"tls_cert" : "test.crt",    // path to TLS private key
 		"tls_key" : "test.key",     // path to TLS certificate
-
-		"bridge_key" : "ab75e357e0890e98ab75e357e0890e98"	// bridge access key, to make sure you have a conversation with your own bridge
+		"public_key" : "beam-public.pem"	// public key, to make sure you have a conversation with your own Bridge
 	}
-
 	```
 	run `mirror.js` script by calling `node mirror.js`.
 1. Now you can do HTTP requests to the *Wallet Mirror* on the public host,  
 	example with CURL usage: 
 	```
-	curl -d '{"jsonrpc":"2.0","id":1,"method":"wallet_status","key":"h12kj3h1k2h3kj12h3kj12"}' -H "Content-Type: application/json" -X POST http://127.0.0.1:80/api/wallet
+	curl -d '{"jsonrpc":"2.0","id":1,"method":"wallet_status"}' -H "Content-Type: application/json" -X POST http://127.0.0.1:80/api/wallet
 	```
-

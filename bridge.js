@@ -1,8 +1,40 @@
 const net       = require('net')
 const fs        = require('fs')
 const tls       = require('tls')
+const crypto    = require('crypto')
 
-console.log("Starting Beam Wallet Bridge...")
+console.log("Starting Beam Wallet Bridge...\n")
+
+var args = process.argv.slice(2)
+
+if(args.length == 1)
+{
+    if(args[0] == '--generate-key-pair')
+    {     
+        console.log('Generating Private and Public keys...\n')
+        
+        const { privateKey, publicKey } = crypto.generateKeyPairSync('ec', 
+        {
+            namedCurve: 'secp256k1',
+            publicKeyEncoding:  { type: 'spki', format: 'pem' },
+            privateKeyEncoding: { type: 'pkcs8', format: 'pem' }
+        })
+
+        fs.writeFileSync('beam-private.pem', privateKey, {mode:0o600})
+        console.log('Private key saved to "beam-private.pem" file.\n')
+
+        fs.writeFileSync('beam-public.pem', publicKey)
+        console.log('Public key saved to "beam-public.pem" file.\n')
+
+        console.log(publicKey)
+
+        console.log('Please copy the public key file near to the Beam Mirror Wallet host!\n')
+
+    }
+    else console.log('Error, unknown parameter:', args[0])
+
+    return
+}
 
 function readConfig(name)
 {
@@ -19,7 +51,18 @@ const cfg = readConfig('bridge.cfg')
 
 if(!cfg)
 {
-    console.log('Error, bridge.cfg not loaded')
+    console.log('Error, bridge.cfg not loaded.')
+    return
+}
+
+cfg.private_key = cfg.private_key || 'beam-private.pem'
+
+var private_key = fs.readFileSync(cfg.private_key)
+
+if(private_key) console.log('Private key "'+cfg.private_key+'" loaded...\n')
+else
+{
+    console.log('Error, private key "'+private_key+'" not loaded.')
     return
 }
 
@@ -74,7 +117,7 @@ function syncWithMirror()
             var res = JSON.parse(acc)
             acc = ''
 
-            var result = {key:cfg.bridge_key, items:[]}
+            var result = {items:[]}
 
             if(res && res.length)
             {
@@ -93,12 +136,18 @@ function syncWithMirror()
 
                             if(data.indexOf('\n') != -1)
                             {
-                                var res = JSON.parse(buf)
+                                console.log('received from wallet api:', buf)
+
+                                // sign response from the api
+                                {
+                                    const sign = crypto.createSign('sha256')
+                                    sign.write(buf)
+                                    sign.end()
+
+                                    result.items.push({id:item.id, result:buf, sign:sign.sign(private_key, 'hex')})
+                                }
+
                                 buf = ''
-
-                                console.log('received from wallet api:', res)
-
-                                result.items.push({id:item.id, result:res})
 
                                 handle()
                             }

@@ -4,6 +4,7 @@ const https     = require('https')
 const url       = require('url')
 const fs        = require('fs')
 const tls       = require('tls')
+const crypto    = require('crypto')
 
 console.log("Starting Beam Wallet Mirror...")
 
@@ -23,6 +24,17 @@ const cfg = readConfig('mirror.cfg')
 if(!cfg)
 {
     console.log('Error, mirror.cfg not loaded')
+    return
+}
+
+cfg.public_key = cfg.public_key || 'beam-public.pem'
+
+var public_key = fs.readFileSync(cfg.public_key)
+
+if(public_key) console.log('Public key "'+cfg.public_key+'" loaded...\n')
+else
+{
+    console.log('Error, public key "'+public_key+'" not loaded.')
     return
 }
 
@@ -123,23 +135,47 @@ function bridgeHandler(socket)
             if(res && res.items && res.items.length)
                 console.log('received from bridge:', res.items)
 
-            if(res.key == cfg.bridge_key)
             {
                 for(var key in res.items)
                 {
                     var resItem = res.items[key]
+
+                    if(!resItem.sign)
+                    {
+                        console.log('Error, invalid signature.')
+                        continue
+                    }
+
+                    // check bridge signature
+                    try
+                    {
+                        const verify = crypto.createVerify('sha256')
+                        verify.write(resItem.result)
+                        verify.end()
+
+                        if(verify.verify(public_key, resItem.sign, 'hex'))
+                        {
+                            console.log('Signature is valid.')
+                        }
+                        else
+                        {
+                            console.log('Error, invalid signature.')
+                            continue
+                        }
+                    }
+                    catch(error)
+                    {
+                        console.log(error)
+                    }
+
                     var queueItem = workingQueue[resItem.id]
 
                     if(queueItem)
                     {
                         queueItem.res.writeHead(200, { 'Content-Type': 'text/plain' })
-                        queueItem.res.end(JSON.stringify(resItem.result))
+                        queueItem.res.end(resItem.result)
                     }
                 }
-            }
-            else
-            {
-                console.log("Error, unknown bridge key: ", res.key)
             }
 
             workingQueue = null
