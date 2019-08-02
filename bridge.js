@@ -2,6 +2,7 @@ const net       = require('net')
 const fs        = require('fs')
 const tls       = require('tls')
 const crypto    = require('crypto')
+const http      = require('http')
 
 console.log("Starting Beam Wallet Bridge...\n")
 
@@ -69,35 +70,164 @@ else
 var api = null
 var client = null
 
+cfg.wallet_api_use_http = cfg.wallet_api_use_http || false
+
 function syncWithBeam()
 {
-    console.log("connecting to Beam")
-
-    api = new net.Socket()
-    var acc = ''
-
-    api.connect(cfg.wallet_api_port, cfg.wallet_api_addr, () =>
+    if(cfg.wallet_api_use_http)
     {
-        console.log('connected to api')
-
         if(client == null)
             syncWithMirror()
-    })
-
-    api.on('close', () =>
+    }
+    else
     {
-        console.log('api connection closed, reconecting...')
-        setTimeout(syncWithBeam, cfg.push_period)
-    })
+        console.log('connecting to Beam using TCP')
 
-    api.on('error', (error)=>
-    {
-        console.log('error occured :(')
-        console.log(error)
-    })
+        api = new net.Socket()
+
+        var acc = ''
+
+        api.connect(cfg.wallet_api_port, cfg.wallet_api_addr, () =>
+        {
+            console.log('connected to api')
+
+            if(client == null)
+                syncWithMirror()
+        })
+
+        api.on('close', () =>
+        {
+            console.log('api connection closed, reconecting...')
+            setTimeout(syncWithBeam, cfg.push_period)
+        })
+
+        api.on('error', (error)=>
+        {
+            console.log('error occured :(')
+            console.log(error)
+        })
+    }
 }
 
 syncWithBeam()
+
+function signResponse(buf, result, item)
+{
+    console.log('received from wallet api:', buf)
+
+    // sign response from the api
+    const sign = crypto.createSign('sha256')
+    sign.write(buf)
+    sign.end()
+
+    result.items.push({id:item.id, result:buf, sign:sign.sign(private_key, 'hex')})
+
+    buf = ''
+}
+
+function httpHandler(res)
+{
+    var result = {items:[]}
+
+    var handle = () =>
+    {
+        if(res.length)
+        {
+            var item = res.splice(0, 1)[0]
+
+            console.log('connecting to Beam using HTTP')
+
+            var req = http.request(
+            {
+                host: cfg.wallet_api_addr,
+                port: cfg.wallet_api_port,
+                path: '/api/wallet',
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'Content-Type: application/json',
+                    'Content-Length': Buffer.byteLength(item.body)
+                }
+            }, (response) => 
+            {
+                var buf = ''
+
+                if(response.statusCode == 200)
+                {
+                    response.setEncoding('utf8')
+
+                    response.on('data', (chunk) => 
+                    {
+                        buf += chunk
+                    })
+
+                    response.on('end', () => 
+                    {
+                        signResponse(buf, result, item)
+
+                        handle()
+                    })
+
+                    response.on('error', (error)=>
+                    {
+                        console.log('error occured :(')
+                        console.log(error)
+                    })         
+                }
+                else
+                {
+                    console.log(`Http error, status: ${response.statusCode}`)
+                }
+            })
+
+            console.log('writing to beam api', item.body)
+
+            req.write(item.body)
+            req.end()
+        }
+        else
+        {
+            client.write(JSON.stringify(result) + '\n')
+        }
+    }
+
+    handle()
+}
+
+function tcpHandler(res)
+{
+    var result = {items:[]}
+    
+    var handle = () =>
+    {
+        if(res.length)
+        {
+            var item = res.splice(0, 1)[0]
+            var buf = ''
+
+            api.once('data', (data) =>
+            {
+                buf += data
+
+                if(data.indexOf('\n') != -1)
+                {                
+                    signResponse(buf, result, item)        
+
+                    handle()
+                }
+            })
+
+            console.log('writing to beam api', item.body)
+
+            api.write(item.body + '\n')
+        }
+        else
+        {
+            client.write(JSON.stringify(result) + '\n')
+        }
+    }
+
+    handle()
+}
 
 function syncWithMirror()
 {
@@ -109,7 +239,6 @@ function syncWithMirror()
 
     client.on('data', (data) =>
     {
-       
         acc += data
 
         if(data.indexOf('\n') != -1)
@@ -117,57 +246,17 @@ function syncWithMirror()
             var res = JSON.parse(acc)
             acc = ''
 
-            var result = {items:[]}
-
             if(res && res.length)
             {
                 console.log('received from mirror:', res)
 
-                var handle = () =>
-                {
-                    if(res.length)
-                    {
-                        var item = res.splice(0, 1)[0]
-                        var buf = ''
-
-                        api.once('data', (data) =>
-                        {
-                            buf += data
-
-                            if(data.indexOf('\n') != -1)
-                            {
-                                console.log('received from wallet api:', buf)
-
-                                // sign response from the api
-                                {
-                                    const sign = crypto.createSign('sha256')
-                                    sign.write(buf)
-                                    sign.end()
-
-                                    result.items.push({id:item.id, result:buf, sign:sign.sign(private_key, 'hex')})
-                                }
-
-                                buf = ''
-
-                                handle()
-                            }
-                        })
-
-                        console.log('writing to beam api', item.body)
-
-                        api.write(item.body + '\n')
-                    }
-                    else
-                    {
-                        client.write(JSON.stringify(result) + '\n')
-                    }
-                }
-
-                handle()
+                cfg.wallet_api_use_http
+                    ? httpHandler(res)
+                    : tcpHandler(res)
             }
             else
             {
-                client.write(JSON.stringify(result) + '\n')
+                client.write(JSON.stringify({items:[]}) + '\n')
             }
         }
     })
