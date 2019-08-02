@@ -16,7 +16,8 @@ You can use _Mirror Wallet_ to isolate your wallet from changes from the outside
 		"mirror_port": 8080                 // public host port
 		"wallet_api_addr": "127.0.0.1",     // Wallet API address
 		"wallet_api_port": 10000,           // Wallet API port
-		"use_tls" : true,                   // use TLS protocol to connect to the Mirror
+		"wallet_api_use_http": true,        // use HTTP connection with Wallet API
+		"use_tls" : false,                  // use TLS protocol to connect to the Mirror
 		"private_key" : "beam-private.pem"  // private key to sign all the messages with the Mirror
 	}
 	```
@@ -29,7 +30,7 @@ You can use _Mirror Wallet_ to isolate your wallet from changes from the outside
 	{
 		"http_api_port": 80,        // port for incomming http(s) requests
 		"mirror_port": 8080,        // server port for bridge connection
-		"use_tls" : true,           // use TLS protocol to talk with the Bridge and HTTP clients
+		"use_tls" : false,          // use TLS protocol to talk with the Bridge and HTTP clients
 		"tls_cert" : "test.crt",    // path to TLS private key
 		"tls_key" : "test.key",     // path to TLS certificate
 		"public_key" : "beam-public.pem"	// public key, to make sure you have a conversation with your own Bridge
