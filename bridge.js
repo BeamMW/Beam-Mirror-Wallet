@@ -111,11 +111,8 @@ function syncWithBeam()
 
 syncWithBeam()
 
-function signResponse(buf, result, item)
+function sign(buf, result, item)
 {
-    console.log('received from wallet api:', buf)
-
-    // sign response from the api
     const sign = crypto.createSign('sha256')
     sign.write(buf)
     sign.end()
@@ -123,6 +120,14 @@ function signResponse(buf, result, item)
     result.items.push({id:item.id, result:buf, sign:sign.sign(private_key, 'hex')})
 
     buf = ''
+}
+
+function signResponse(buf, result, item)
+{
+    console.log('received from wallet api:', buf)
+
+    // sign response from the api
+    sign(buf, result, item)
 }
 
 function httpHandler(res)
@@ -229,6 +234,16 @@ function tcpHandler(res)
     handle()
 }
 
+var supportedMethods = 
+[
+    'validate_address',
+    'addr_list',
+    'tx_status',
+    'get_utxo',
+    'tx_list',
+    'wallet_status'
+]
+
 function syncWithMirror()
 {
     client = cfg.use_tls
@@ -250,9 +265,21 @@ function syncWithMirror()
             {
                 console.log('received from mirror:', res)
 
-                cfg.wallet_api_use_http
-                    ? httpHandler(res)
-                    : tcpHandler(res)
+                var item = res[0]
+                var body = JSON.parse(item.body)
+                if (supportedMethods.indexOf(body.method) != -1)
+                {
+                    cfg.wallet_api_use_http
+                        ? httpHandler(res)
+                        : tcpHandler(res)
+                }
+                else
+                {
+                    console.log('invalid method:', body.method)
+                    var result = {items:[]}
+                    sign(JSON.stringify({'id': body.id,'jsonrpc': '2.0','error': {'code': -32601, 'message': 'Method not found'}}) + '\n', result, item)
+                    client.write(JSON.stringify(result) + '\n')
+                }
             }
             else
             {

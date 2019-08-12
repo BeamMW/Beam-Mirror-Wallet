@@ -41,6 +41,26 @@ else
 var queue = []
 var workingQueue = null
 
+const INVALID_METHOD = -32601
+const JSON_PARSE_ERROR = -32700
+
+var supportedMethods = 
+[
+    "validate_address",
+    "addr_list",
+    "tx_status",
+    "get_utxo",
+    "tx_list",
+    "wallet_status"
+]
+
+function sendError(res, code, message, id)
+{
+    res.writeHead(200, {'Content-Type': 'application/json'})
+    var msg = {'id': id, 'jsonrpc': '2.0', 'error': {'code': code, 'message': message}}
+    res.end(JSON.stringify(msg) + '\n')
+}
+
 function httpHandler(req, res)
 {
     var href = url.parse(req.url)
@@ -61,7 +81,28 @@ function httpHandler(req, res)
                 req.connection.destroy()
         })
 
-        req.on('end', () => queue.push({req:req, res:res, body:body}))
+        req.on('end', () => 
+        {
+            try
+            {
+                var r = JSON.parse(body)
+                if (supportedMethods.indexOf(r.method) != -1)
+                {
+                    queue.push({req:req, res:res, body:body})    
+                }
+                else
+                {
+                    console.log('Method not found')
+                    sendError(res, INVALID_METHOD, 'Method not found', r.id)
+                }
+            }
+            catch(error)
+            {
+                console.log('JSON parsing error:', error)
+                console.log(body)
+                sendError(res, JSON_PARSE_ERROR, 'Parse error', null)
+            }
+        })
     }
     else
     {
