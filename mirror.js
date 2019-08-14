@@ -28,14 +28,20 @@ if(!cfg)
 }
 
 cfg.public_key = cfg.public_key || 'beam-public.pem'
+cfg.verify_signature = cfg.verify_signature || false
 
-var public_key = fs.readFileSync(cfg.public_key)
+var public_key = null
 
-if(public_key) console.log('Public key "'+cfg.public_key+'" loaded...\n')
-else
+if (cfg.verify_signature)
 {
-    console.log('Error, public key "'+public_key+'" not loaded.')
-    return
+    public_key = fs.readFileSync(cfg.public_key)
+
+    if(public_key) console.log('Public key "'+cfg.public_key+'" loaded...\n')
+    else
+    {
+        console.log('Error, public key "'+public_key+'" not loaded.')
+        return
+    }
 }
 
 var queue = []
@@ -183,30 +189,33 @@ function bridgeHandler(socket)
 
                     if(!resItem.sign)
                     {
-                        console.log('Error, invalid signature.')
+                        console.log('Error, there is no signature.')
                         continue
                     }
 
-                    // check bridge signature
-                    try
+                    if (cfg.verify_signature)
                     {
-                        const verify = crypto.createVerify('sha256')
-                        verify.write(resItem.result)
-                        verify.end()
+                        // check bridge signature
+                        try
+                        {
+                            const verify = crypto.createVerify('sha256')
+                            verify.write(resItem.result)
+                            verify.end()
 
-                        if(verify.verify(public_key, resItem.sign, 'hex'))
-                        {
-                            console.log('Signature is valid.')
+                            if(verify.verify(public_key, resItem.sign, 'hex'))
+                            {
+                                console.log('Signature is valid.')
+                            }
+                            else
+                            {
+                                console.log('Error, invalid signature.')
+                                continue
+                            }
                         }
-                        else
+                        catch(error)
                         {
-                            console.log('Error, invalid signature.')
-                            continue
-                        }
-                    }
-                    catch(error)
-                    {
-                        console.log(error)
+                            console.log(error)
+                        }    
                     }
 
                     var queueItem = workingQueue[resItem.id]
@@ -214,7 +223,15 @@ function bridgeHandler(socket)
                     if(queueItem)
                     {
                         queueItem.res.writeHead(200, { 'Content-Type': 'text/plain' })
-                        queueItem.res.end(resItem.result)
+                        if (cfg.verify_signature)
+                        {
+                            queueItem.res.end(resItem.result)    
+                        }
+                        else
+                        {
+                            // pass signature to the client and it will be its duty to verify signature
+                            queueItem.res.end(JSON.stringify(resItem) + '\n')    
+                        }
                     }
                 }
             }

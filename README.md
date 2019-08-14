@@ -34,6 +34,7 @@ You can use _Mirror Wallet_ to isolate your wallet from changes from the outside
 		"tls_cert" : "test.crt",    // path to TLS private key
 		"tls_key" : "test.key",     // path to TLS certificate
 		"public_key" : "beam-public.pem"	// public key, to make sure you have a conversation with your own Bridge
+		"verify_signature" : false  // use public key to verify signature, if false message with signature will be sent to client
 	}
 	```
 	run `mirror.js` script by calling `node mirror.js`.
