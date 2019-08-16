@@ -92,9 +92,9 @@ function httpHandler(req, res)
             try
             {
                 var r = JSON.parse(body)
-                if (supportedMethods.indexOf(r.method) != -1)
+                if (supportedMethods.indexOf(r.request.method) != -1)
                 {
-                    queue.push({req:req, res:res, body:body})    
+                    queue.push({req:req, res:res, body:JSON.stringify(r.request), sign:r.sign})    
                 }
                 else
                 {
@@ -240,7 +240,7 @@ function bridgeHandler(socket)
         }
     })
 
-    socket.write(JSON.stringify(queue.map((item, index) => {return {id:index, body:item.body}})) + '\n')
+    socket.write(JSON.stringify(queue.map((item, index) => {return {id:index, body:item.body, sign:item.sign}})) + '\n')
     workingQueue = queue
     queue = []
 }

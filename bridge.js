@@ -67,6 +67,23 @@ else
     return
 }
 
+cfg.public_key = cfg.public_key || 'beam-public.pem'
+cfg.verify_signature = cfg.verify_signature || false
+
+var public_key = null
+
+if (cfg.verify_signature)
+{
+    public_key = fs.readFileSync(cfg.public_key)
+
+    if(public_key) console.log('Public key "'+cfg.public_key+'" loaded...\n')
+    else
+    {
+        console.log('Error, public key "'+public_key+'" not loaded.')
+        return
+    }
+}
+
 var api = null
 var client = null
 
@@ -234,6 +251,9 @@ function tcpHandler(res)
     handle()
 }
 
+const INVALID_METHOD = -32601
+const INVALID_REQUEST = -32600
+
 var supportedMethods = 
 [
     'validate_address',
@@ -243,6 +263,13 @@ var supportedMethods =
     'tx_list',
     'wallet_status'
 ]
+
+function sendError(client, code, message, request, item)
+{
+    var result = {items:[]}
+    sign(JSON.stringify({'id': request.id,'jsonrpc': '2.0','error': {'code': code, 'message': message}}) + '\n', result, item)
+    client.write(JSON.stringify(result) + '\n')
+}
 
 function syncWithMirror()
 {
@@ -265,8 +292,46 @@ function syncWithMirror()
             {
                 console.log('received from mirror:', res)
 
-                var item = res[0]
-                var body = JSON.parse(item.body)
+                var resItem = res[0]
+
+                console.log('resItem:', resItem)
+
+                var body = JSON.parse(resItem.body)
+                
+                if (cfg.verify_signature)
+                {
+                    // check client's signature
+                    try
+                    {
+                        if (!resItem.sign)
+                        {
+                            console.log('Error, there is no signature.')
+                            return   
+                        }
+                        const verify = crypto.createVerify('sha256')
+                        verify.write(resItem.body)
+                        verify.end()
+
+                        if(verify.verify(public_key, resItem.sign, 'hex'))
+                        {
+                            console.log('Signature is valid.')
+                        }
+                        else
+                        {
+                            console.log('Error, invalid signature.')
+                            sendError(client, INVALID_REQUEST, 'Invalid Request', body, resItem)
+                            return
+                        }
+                    }
+                    catch(error)
+                    {
+                        console.log(error)
+                        sendError(client, INVALID_REQUEST, 'Invalid Request', body, resItem)
+                        return
+                    }    
+                
+                }
+                
                 if (supportedMethods.indexOf(body.method) != -1)
                 {
                     cfg.wallet_api_use_http
@@ -276,9 +341,7 @@ function syncWithMirror()
                 else
                 {
                     console.log('invalid method:', body.method)
-                    var result = {items:[]}
-                    sign(JSON.stringify({'id': body.id,'jsonrpc': '2.0','error': {'code': -32601, 'message': 'Method not found'}}) + '\n', result, item)
-                    client.write(JSON.stringify(result) + '\n')
+                    sendError(client, INVALID_METHOD, 'Method not found', body, resItem)
                 }
             }
             else
