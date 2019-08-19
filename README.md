@@ -38,4 +38,3 @@ You can use _Mirror Wallet_ to isolate your wallet from changes from the outside
 	```
 	run `mirror.js` script by calling `node mirror.js`.
 1. Look at the [client-sample.js](https://github.com/BeamMW/Beam-Mirror-Wallet/blob/master/client-sample.js) to understand how to encrypt/decrypt data from from bridge.
-	```
