@@ -14,11 +14,22 @@ if(args.length == 1)
     {     
         console.log('Generating Private and Public keys...\n')
         
-        const { privateKey, publicKey } = crypto.generateKeyPairSync('ec', 
+        const { privateKey, publicKey } = crypto.generateKeyPairSync('rsa', 
         {
-            namedCurve: 'secp256k1',
-            publicKeyEncoding:  { type: 'spki', format: 'pem' },
-            privateKeyEncoding: { type: 'pkcs8', format: 'pem' }
+            modulusLength: 4096,
+            publicKeyEncoding: 
+            {
+                type: 'pkcs1',
+                format: 'pem',
+            },
+
+            privateKeyEncoding: 
+            {
+                type: 'pkcs1',
+                format: 'pem',
+                cipher: 'aes-256-cbc',
+                passphrase: '',
+            }
         })
 
         fs.writeFileSync('beam-private.pem', privateKey, {mode:0o600})
@@ -29,7 +40,7 @@ if(args.length == 1)
 
         console.log(publicKey)
 
-        console.log('Please copy the public key file near to the Beam Mirror Wallet host!\n')
+        console.log('Please copy the public key file near to the client host!\n')
 
     }
     else console.log('Error, unknown parameter:', args[0])
@@ -67,22 +78,7 @@ else
     return
 }
 
-cfg.public_key = cfg.public_key || 'beam-public.pem'
 cfg.verify_signature = cfg.verify_signature || false
-
-var public_key = null
-
-if (cfg.verify_signature)
-{
-    public_key = fs.readFileSync(cfg.public_key)
-
-    if(public_key) console.log('Public key "'+cfg.public_key+'" loaded...\n')
-    else
-    {
-        console.log('Error, public key "'+public_key+'" not loaded.')
-        return
-    }
-}
 
 var api = null
 var client = null
@@ -128,25 +124,6 @@ function syncWithBeam()
 
 syncWithBeam()
 
-function sign(buf, result, item)
-{
-    const sign = crypto.createSign('sha256')
-    sign.write(buf)
-    sign.end()
-
-    result.items.push({id:item.id, result:buf, sign:sign.sign(private_key, 'hex')})
-
-    buf = ''
-}
-
-function signResponse(buf, result, item)
-{
-    console.log('received from wallet api:', buf)
-
-    // sign response from the api
-    sign(buf, result, item)
-}
-
 function httpHandler(res)
 {
     var result = {items:[]}
@@ -159,6 +136,8 @@ function httpHandler(res)
 
             console.log('connecting to Beam using HTTP')
 
+            var data = JSON.stringify(item.body)
+
             var req = http.request(
             {
                 host: cfg.wallet_api_addr,
@@ -167,7 +146,7 @@ function httpHandler(res)
                 method: 'POST',
                 headers: {
                     'Content-Type': 'Content-Type: application/json',
-                    'Content-Length': Buffer.byteLength(item.body)
+                    'Content-Length': Buffer.byteLength(data)
                 }
             }, (response) => 
             {
@@ -184,7 +163,9 @@ function httpHandler(res)
 
                     response.on('end', () => 
                     {
-                        signResponse(buf, result, item)
+                        var encrypted = crypto.privateEncrypt(private_key, Buffer.from(buf))
+                        result.items.push({id:item.id, result:encrypted.toString('hex')})
+                        buf = ''
 
                         handle()
                     })
@@ -201,9 +182,9 @@ function httpHandler(res)
                 }
             })
 
-            console.log('writing to beam api', item.body)
+            console.log('writing to beam api', data)
 
-            req.write(item.body)
+            req.write(data)
             req.end()
         }
         else
@@ -226,21 +207,25 @@ function tcpHandler(res)
             var item = res.splice(0, 1)[0]
             var buf = ''
 
-            api.once('data', (data) =>
+            api.once('data', (chunk) =>
             {
-                buf += data
+                buf += chunk
 
-                if(data.indexOf('\n') != -1)
-                {                
-                    signResponse(buf, result, item)        
+                if(chunk.indexOf('\n') != -1)
+                {
+                    var encrypted = crypto.privateEncrypt(private_key, Buffer.from(buf))
+                    result.items.push({id:item.id, result:encrypted})
+                    buf = ''     
 
                     handle()
                 }
             })
 
-            console.log('writing to beam api', item.body)
+            var data = JSON.stringify(item.body)
 
-            api.write(item.body + '\n')
+            console.log('writing to beam api', data)
+
+            api.write(data + '\n')
         }
         else
         {
@@ -266,8 +251,8 @@ var supportedMethods =
 
 function sendError(client, code, message, request, item)
 {
-    var result = {items:[]}
-    sign(JSON.stringify({'id': request.id,'jsonrpc': '2.0','error': {'code': code, 'message': message}}) + '\n', result, item)
+    var encrypted = crypto.privateEncrypt(private_key, Buffer.from(JSON.stringify({jsonrpc: '2.0',error: {code: code, message: message}})))
+    var result = {items:[{id:item.id, result:encrypted}]}
     client.write(JSON.stringify(result) + '\n')
 }
 
@@ -296,43 +281,19 @@ function syncWithMirror()
 
                 console.log('resItem:', resItem)
 
-                var body = JSON.parse(resItem.body)
-                
-                if (cfg.verify_signature)
+                try
                 {
-                    // check client's signature
-                    try
-                    {
-                        if (!resItem.sign)
-                        {
-                            console.log('Error, there is no signature.')
-                            return   
-                        }
-                        const verify = crypto.createVerify('sha256')
-                        verify.write(resItem.body)
-                        verify.end()
-
-                        if(verify.verify(public_key, resItem.sign, 'hex'))
-                        {
-                            console.log('Signature is valid.')
-                        }
-                        else
-                        {
-                            console.log('Error, invalid signature.')
-                            sendError(client, INVALID_REQUEST, 'Invalid Request', body, resItem)
-                            return
-                        }
-                    }
-                    catch(error)
-                    {
-                        console.log(error)
-                        sendError(client, INVALID_REQUEST, 'Invalid Request', body, resItem)
-                        return
-                    }    
-                
+                    resItem.body = JSON.parse(crypto.privateDecrypt(private_key, Buffer.from(resItem.body, 'hex')))
+                }
+                catch(error)
+                {
+                    console.log('Error, something went wrong...')
+                    console.log(error)
+                    sendError(client, INVALID_REQUEST, 'Invalid Request', resItem.body, resItem)
+                    return
                 }
                 
-                if (supportedMethods.indexOf(body.method) != -1)
+                if (supportedMethods.indexOf(resItem.body.method) != -1)
                 {
                     cfg.wallet_api_use_http
                         ? httpHandler(res)
@@ -340,8 +301,8 @@ function syncWithMirror()
                 }
                 else
                 {
-                    console.log('invalid method:', body.method)
-                    sendError(client, INVALID_METHOD, 'Method not found', body, resItem)
+                    console.log('invalid method:', resItem.body.method)
+                    sendError(client, INVALID_METHOD, 'Method not found', resItem.body, resItem)
                 }
             }
             else

@@ -27,45 +27,8 @@ if(!cfg)
     return
 }
 
-cfg.public_key = cfg.public_key || 'beam-public.pem'
-cfg.verify_signature = cfg.verify_signature || false
-
-var public_key = null
-
-if (cfg.verify_signature)
-{
-    public_key = fs.readFileSync(cfg.public_key)
-
-    if(public_key) console.log('Public key "'+cfg.public_key+'" loaded...\n')
-    else
-    {
-        console.log('Error, public key "'+public_key+'" not loaded.')
-        return
-    }
-}
-
 var queue = []
 var workingQueue = null
-
-const INVALID_METHOD = -32601
-const JSON_PARSE_ERROR = -32700
-
-var supportedMethods = 
-[
-    "validate_address",
-    "addr_list",
-    "tx_status",
-    "get_utxo",
-    "tx_list",
-    "wallet_status"
-]
-
-function sendError(res, code, message, id)
-{
-    res.writeHead(200, {'Content-Type': 'application/json'})
-    var msg = {'id': id, 'jsonrpc': '2.0', 'error': {'code': code, 'message': message}}
-    res.end(JSON.stringify(msg) + '\n')
-}
 
 function httpHandler(req, res)
 {
@@ -77,37 +40,22 @@ function httpHandler(req, res)
         && pathParts[1] == 'api'
         && pathParts[2] == 'wallet')
     {
-        var body = ''
+        var body = []
+        var size = 0
 
         req.on('data', (data) =>
         {
-            body += data
+            body.push(data)
 
-            if (body.length > 1e6)
+            size += data.length
+
+            if (size > 1e6)
                 req.connection.destroy()
         })
 
         req.on('end', () => 
-        {
-            try
-            {
-                var r = JSON.parse(body)
-                if (supportedMethods.indexOf(r.request.method) != -1)
-                {
-                    queue.push({req:req, res:res, body:JSON.stringify(r.request), sign:r.sign})    
-                }
-                else
-                {
-                    console.log('Method not found')
-                    sendError(res, INVALID_METHOD, 'Method not found', r.id)
-                }
-            }
-            catch(error)
-            {
-                console.log('JSON parsing error:', error)
-                console.log(body)
-                sendError(res, JSON_PARSE_ERROR, 'Parse error', null)
-            }
+        {           
+            queue.push({req:req, res:res, body:Buffer.concat(body)})
         })
     }
     else
@@ -180,58 +128,18 @@ function bridgeHandler(socket)
             }
 
             if(res && res.items && res.items.length)
-                console.log('received from bridge:', res.items)
-
             {
+                console.log('received from bridge:', res.items)
+                
                 for(var key in res.items)
                 {
                     var resItem = res.items[key]
-
-                    if(!resItem.sign)
-                    {
-                        console.log('Error, there is no signature.')
-                        continue
-                    }
-
-                    if (cfg.verify_signature)
-                    {
-                        // check bridge signature
-                        try
-                        {
-                            const verify = crypto.createVerify('sha256')
-                            verify.write(resItem.result)
-                            verify.end()
-
-                            if(verify.verify(public_key, resItem.sign, 'hex'))
-                            {
-                                console.log('Signature is valid.')
-                            }
-                            else
-                            {
-                                console.log('Error, invalid signature.')
-                                continue
-                            }
-                        }
-                        catch(error)
-                        {
-                            console.log(error)
-                        }    
-                    }
-
                     var queueItem = workingQueue[resItem.id]
 
                     if(queueItem)
                     {
-                        queueItem.res.writeHead(200, { 'Content-Type': 'text/plain' })
-                        if (cfg.verify_signature)
-                        {
-                            queueItem.res.end(resItem.result)    
-                        }
-                        else
-                        {
-                            // pass signature to the client and it will be its duty to verify signature
-                            queueItem.res.end(JSON.stringify(resItem) + '\n')    
-                        }
+                        queueItem.res.writeHead(200, { 'Content-Type': 'application/octet-stream' })
+                        queueItem.res.end(Buffer.from(resItem.result, 'hex'))
                     }
                 }
             }
@@ -240,7 +148,7 @@ function bridgeHandler(socket)
         }
     })
 
-    socket.write(JSON.stringify(queue.map((item, index) => {return {id:index, body:item.body, sign:item.sign}})) + '\n')
+    socket.write(JSON.stringify(queue.map((item, index) => { return {id:index, body:item.body.toString('hex')}})) + '\n')
     workingQueue = queue
     queue = []
 }
