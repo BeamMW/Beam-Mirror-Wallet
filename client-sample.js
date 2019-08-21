@@ -3,7 +3,7 @@
 const MirrorAddr = '127.0.0.1'
 const MirrorPort = 80
 const PublicKey = 'beam-public.pem'
-const ClientRequest = {jsonrpc:"2.0",id:1,method:"wallet_status1"}
+const ClientRequest = {jsonrpc:"2.0",id:1,method:"wallet_status"}
 
 //////////////////////////////////////////////////////
 
@@ -24,8 +24,29 @@ if(!public_key)
 
 console.log('Public key loaded...')
 
+function crypt(key, buf, func, chunk)
+{
+    var res = []
+    var offset = 0
+
+    while(true)
+    {
+        var data = buf.slice(offset, offset + chunk)
+        if(data.length == 0)
+            break
+
+        res.push(func(key, data))
+        offset += chunk
+    }
+
+    return Buffer.concat(res)
+}
+
+const RsaDecryptChunk = 4096/8 // bytes
+const RsaEncryptChunk = RsaDecryptChunk - 42 // bytes
+
 // encrypt and send request
-var encData = crypto.publicEncrypt(public_key, Buffer.from(JSON.stringify(ClientRequest)))
+var encData = crypt(public_key, Buffer.from(JSON.stringify(ClientRequest)), crypto.publicEncrypt, RsaEncryptChunk)
 
 var req = http.request
 (
@@ -53,7 +74,7 @@ var req = http.request
             response.on('end', () => 
             {
             	// decrypt result with the public key
-            	var result = crypto.publicDecrypt(public_key, Buffer.concat(buf)).toString()
+            	var result = crypt(public_key, Buffer.concat(buf), crypto.publicDecrypt, RsaDecryptChunk).toString()
                 console.log(result)
                 buf = []
             })

@@ -124,6 +124,27 @@ function syncWithBeam()
 
 syncWithBeam()
 
+function crypt(key, buf, func, chunk)
+{
+    var res = []
+    var offset = 0
+
+    while(true)
+    {
+        var data = buf.slice(offset, offset + chunk)
+        if(data.length == 0)
+            break
+
+        res.push(func(key, data))
+        offset += chunk
+    }
+
+    return Buffer.concat(res)
+}
+
+const RsaDecryptChunk = 4096/8 // bytes
+const RsaEncryptChunk = RsaDecryptChunk - 42 // bytes
+
 function httpHandler(res)
 {
     var result = {items:[]}
@@ -163,7 +184,7 @@ function httpHandler(res)
 
                     response.on('end', () => 
                     {
-                        var encrypted = crypto.privateEncrypt(private_key, Buffer.from(buf))
+                        var encrypted = crypt(private_key, Buffer.from(buf), crypto.privateEncrypt, RsaEncryptChunk)
                         result.items.push({id:item.id, result:encrypted.toString('hex')})
                         buf = ''
 
@@ -213,7 +234,7 @@ function tcpHandler(res)
 
                 if(chunk.indexOf('\n') != -1)
                 {
-                    var encrypted = crypto.privateEncrypt(private_key, Buffer.from(buf))
+                    var encrypted = crypt(private_key, Buffer.from(buf), crypto.privateEncrypt, RsaEncryptChunk)
                     result.items.push({id:item.id, result:encrypted})
                     buf = ''     
 
@@ -251,7 +272,7 @@ var supportedMethods =
 
 function sendError(client, code, message, request, item)
 {
-    var encrypted = crypto.privateEncrypt(private_key, Buffer.from(JSON.stringify({jsonrpc: '2.0',error: {code: code, message: message}})))
+    var encrypted = crypt(private_key, Buffer.from(JSON.stringify({jsonrpc: '2.0',error: {code: code, message: message}})), crypto.privateEncrypt, RsaEncryptChunk)
     var result = {items:[{id:item.id, result:encrypted}]}
     client.write(JSON.stringify(result) + '\n')
 }
@@ -283,7 +304,7 @@ function syncWithMirror()
 
                 try
                 {
-                    resItem.body = JSON.parse(crypto.privateDecrypt(private_key, Buffer.from(resItem.body, 'hex')))
+                    resItem.body = JSON.parse(crypt(private_key, Buffer.from(resItem.body, 'hex'), crypto.privateDecrypt, RsaDecryptChunk))
                 }
                 catch(error)
                 {
