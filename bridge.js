@@ -6,6 +6,11 @@ const http      = require('http')
 
 console.log("Starting Beam Wallet Bridge...\n")
 
+process.on('uncaughtException', (err, origin) => {
+    console.log('!!! UNCAUGHT EXCEPTION !!!')
+    console.log(err)
+});
+
 var args = process.argv.slice(2)
 
 if(args.length == 1)

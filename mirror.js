@@ -8,6 +8,11 @@ const crypto    = require('crypto')
 
 console.log("Starting Beam Wallet Mirror...")
 
+process.on('uncaughtException', (err, origin) => {
+    console.log('!!! UNCAUGHT EXCEPTION !!!')
+    console.log(err)
+});
+
 function readConfig(name)
 {
     if(fs.existsSync(name))
