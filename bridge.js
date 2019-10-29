@@ -302,34 +302,39 @@ function syncWithMirror()
             if(res && res.length)
             {
                 console.log('received from mirror:', res)
+                var requests = [];
 
-                var resItem = res[0]
-
-                console.log('resItem:', resItem)
-
-                try
+                for (var i = 0; i < res.length; ++i)
                 {
-                    resItem.body = JSON.parse(crypt(private_key, Buffer.from(resItem.body, 'hex'), crypto.privateDecrypt, RsaDecryptChunk))
-                }
-                catch(error)
-                {
-                    console.log('Error, something went wrong...')
-                    console.log(error)
-                    sendError(client, INVALID_REQUEST, 'Invalid Request', resItem.body, resItem)
-                    return
-                }
+                    var resItem = res[i]
+
+                    console.log('resItem:', resItem)
+
+                    try
+                    {
+                        resItem.body = JSON.parse(crypt(private_key, Buffer.from(resItem.body, 'hex'), crypto.privateDecrypt, RsaDecryptChunk))
+                    }
+                    catch(error)
+                    {
+                        console.log('Error, something went wrong...')
+                        console.log(error)
+                        sendError(client, INVALID_REQUEST, 'Invalid Request', resItem.body, resItem)
+                        continue;
+                    }
                 
-                if (supportedMethods.indexOf(resItem.body.method) != -1)
-                {
-                    cfg.wallet_api_use_http
-                        ? httpHandler(res)
-                        : tcpHandler(res)
+                    if (supportedMethods.indexOf(resItem.body.method) != -1)
+                    {
+                        requests.push(resItem)
+                    }
+                    else
+                    {
+                        console.log('invalid method:', resItem.body.method)
+                        sendError(client, INVALID_METHOD, 'Method not found', resItem.body, resItem)
+                    }
                 }
-                else
-                {
-                    console.log('invalid method:', resItem.body.method)
-                    sendError(client, INVALID_METHOD, 'Method not found', resItem.body, resItem)
-                }
+                cfg.wallet_api_use_http
+                            ? httpHandler(requests)
+                            : tcpHandler(requests)
             }
             else
             {
